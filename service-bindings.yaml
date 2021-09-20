@@ -1,0 +1,35 @@
+---
+apiVersion: binding.operators.coreos.com/v1alpha1
+kind: ServiceBinding
+metadata:
+  name: servicebinding-consumer
+spec:
+  bindAsFiles: false
+  services:
+  - group: rabbitmq.com
+    version: v1beta1
+    kind: RabbitmqCluster
+    name: rabbitmq
+  application:
+    name: consumer-deployment
+    version: v1
+    group: apps
+    resource: deployments
+---
+apiVersion: binding.operators.coreos.com/v1alpha1
+kind: ServiceBinding
+metadata:
+  name: servicebinding-producer
+spec:
+  bindAsFiles: false
+  services:
+  - group: rabbitmq.com
+    version: v1beta1
+    kind: RabbitmqCluster
+    name: rabbitmq
+  application:
+    name: producer-deployment
+    version: v1
+    group: apps
+    resource: deployments
+---

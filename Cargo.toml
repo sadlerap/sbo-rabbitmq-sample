@@ -1,0 +1,18 @@
+[package]
+name = "rabbitmq-test"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "consumer"
+path = "src/consumer.rs"
+
+[[bin]]
+name = "producer"
+path = "src/producer.rs"
+
+[dependencies]
+amiquip = "0.4.0"
+color-eyre = "0.5.11"

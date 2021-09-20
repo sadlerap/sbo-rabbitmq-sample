@@ -1,0 +1,9 @@
+FROM rust:latest
+
+WORKDIR /usr/src/application
+
+COPY . .
+
+RUN cargo install --path . --bin consumer
+
+CMD ["consumer"]
