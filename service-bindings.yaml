@@ -1,24 +1,14 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: sbo-rabbitmq
+  labels:
+    servicebinding.io/controller: "true"
 rules:
   - apiGroups: ["rabbitmq.com"]
     resources: ["rabbitmqclusters"]
-    verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: sbo-rabbitmq-binding
-subjects:
-  - kind: ServiceAccount
-    name: service-binding-operator
-    namespace: operators
-roleRef:
-  kind: ClusterRole
-  name: sbo-rabbitmq
-  apiGroup: rbac.authorization.k8s.io
+    verbs: ["get", "list"]
 ---
 apiVersion: binding.operators.coreos.com/v1alpha1
 kind: ServiceBinding

@@ -15,7 +15,8 @@ fn main() -> Result<()> {
 
     let username = std::env::var("RABBITMQCLUSTER_USERNAME").unwrap_or("guest".into());
     let password = std::env::var("RABBITMQCLUSTER_PASSWORD").unwrap_or("guest".into());
-    let hostname = std::env::var("RABBITMQCLUSTER_HOST")?;
+    let hostname = std::env::var("RABBITMQCLUSTER_HOST")
+        .map_err(|x| {eprintln!("env var RABBITMQCLUSTER_HOST undefined"); return x})?;
     let port = std::env::var("RABBITMQ_SERVICE_PORT_AMQP")
         .as_ref()
         .map(|x| u16::from_str_radix(x, 10))
@@ -29,8 +30,11 @@ fn main() -> Result<()> {
 
     let exchange = Exchange::direct(&channel);
 
+    let message = "hello, world!";
+    let queue = "hello";
     loop {
-        exchange.publish(Publish::new("hello there".as_bytes(), "hello"))?;
+        println!("sending [{}] to queue {}", message, queue);
+        exchange.publish(Publish::new(message.as_bytes(), queue))?;
         thread::sleep(Duration::from_secs(10));
     }
 }

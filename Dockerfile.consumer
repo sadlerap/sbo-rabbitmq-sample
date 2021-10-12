@@ -1,9 +1,11 @@
-FROM rust:latest
-
+FROM rust:latest as builder
 WORKDIR /usr/src/application
 
 COPY . .
 
-RUN cargo install --path . --bin consumer
+RUN cargo build --release --bins
 
-CMD ["consumer"]
+FROM scratch
+COPY --from=builder /usr/src/application/target/release/consumer /usr/local/bin/consumer
+
+CMD "/usr/local/bin/consumer"
