@@ -1,11 +1,13 @@
 FROM rust:latest as builder
 WORKDIR /usr/src/application
 
-COPY . .
+COPY Cargo.lock Cargo.toml ./
+COPY src/*.rs ./src/
 
 RUN cargo build --release --bins
 
-FROM scratch
+FROM debian:bullseye-slim
+RUN apt-get update && apt-get install -y libgcc-10-dev && rm -rf /var/lib/apt/lists/
 COPY --from=builder /usr/src/application/target/release/consumer /usr/local/bin/consumer
 
-CMD "/usr/local/bin/consumer"
+CMD ["/usr/local/bin/consumer"]

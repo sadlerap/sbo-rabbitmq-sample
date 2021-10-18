@@ -17,8 +17,7 @@ spec:
     spec:
       containers:
       - name: producer
-        image: rabbitmq-test/producer
-        imagePullPolicy: Never
+        image: quay.io/ansadler/rabbitmq-producer:latest
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -38,8 +37,7 @@ spec:
     spec:
       containers:
       - name: consumer
-        image: rabbitmq-test/consumer
-        imagePullPolicy: Never
+        image: quay.io/ansadler/rabbitmq-consumer:latest
 ---
 apiVersion: rabbitmq.com/v1beta1
 kind: RabbitmqCluster
