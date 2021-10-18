@@ -1,35 +1,43 @@
 # Introduction
 
-Today, we will examine how we can leverage Service Binding Operator (SBO) to
-make connecting services to applications easier within a kubernetes cluster.
+Today, we will examine how we can leverage the Service Binding Operator (SBO)
+to make connecting services to applications easier within a kubernetes cluster.
+
+# Background - What is the Service Binding Operator?
+
+In the realm of Kubernetes, exposing secrets to applications to allow them to
+connect to services is an inconsistent process across the ecosystem.  Many
+service providers have their own bespoke method of binding an application to
+their service.
+
+The Service Binding Operator is intended to remedy this issue by managing the
+binding process for us.  When you execute a binding request, the operator looks
+at information stored within the custom resource and its corresponding custom
+resource definition.  This information informs the operator of the information
+it needs to expose to the application and will inject it into its runtime
+container.  It does so either by environment variables or by files mounted
+within the container.
+
+To learn more about some of the other features we support and integrations with
+other products, you can read our release announcement
+[here](https://docs.google.com/document/d/1VgTMKlc9B1_32hGT1AnZhzEjomGKwlTYc4nZ7QudkpU/edit#),
+which covers those details.  In this post, we will be looking at an example of
+binding in action using the Service Binding Operator.
 
 # An example
 
-As an example, let's say I have two kubernetes services, `producer` and
-`consumer`, that talk to a RabbitMQ instance using AMQP.  `producer`
-periodically produces data that `consumer` reads and acts on.  For the sake of
-this demonstration, that action is printing whatever it receives to `stdout`.
+Let's say I have two kubernetes services, `producer` and `consumer`, that talk
+to a RabbitMQ instance using AMQP.  `producer` periodically produces data that
+`consumer` reads and acts on.  For the sake of this demonstration, that action
+is printing whatever it receives to `stdout`.
 
-In normal circumstances (read: not running on kubernetes), we would need to tell
-both `producer` and `consumer` how to connect to a rabbitmq instance.  This
-means distributing to these services the following information:
+We'll return to the concept of binding once we have everything setup.  For now,
+let's get our RabbitMQ cluster setup on a local kubernetes cluster (I prototype
+with `minikube`, but the instructions would be the same if you were to run this
+on an OpenShift cluster).
 
-- Hostname/Port
-- Authentication credentials (such as username & password)
-
-In summary, we want our setup to look like the following:
-
-- An operator-managed RabbitMQ cluster running on kubernetes (we will use
-  https://github.com/rabbitmq/cluster-operator for this demonstration)
-- Our `producer` and `consumer` also running on kubernetes
-
-# Connecting made easier
-
-Instead of connecting the hard way, we can leverage SBO to get these services
-to talk to RabbitMQ.
-
-First, let's get our rabbitmq cluster setup.  First, we need to install
-Operator Lifecycle Manager (OLM), a prerequisite for our RabbitMQ operator:
+First, we need to install Operator Lifecycle Manager (OLM), a prerequisite for
+our RabbitMQ operator:
 ```bash
 curl -sL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/v0.19.1/install.sh | bash -s v0.19.1
 ```
@@ -128,8 +136,19 @@ in how to read this annotation, check out our
 
 ## Binding things together
 
-Right now, we have our applications running, but they're currently not talking
-to our RabbitMQ cluster yet.  Let's fix that by making a binding request.
+If we were not using SBO, we would need to tell both `producer` and `consumer`
+how to connect to a rabbitmq instance.  This means distributing at minimum the
+following information to these services:
+
+- The hostname of the RabbitMQ instance
+- The port that the RabbitMQ instance is listening on
+- Authentication credentials (such as username and password)
+
+This would require us to expose our secrets to our applications, either by
+having these applications directly fetch that information from kubernetes' API
+or by injecting that information into our applications ourselves.  Both of
+these methods are rather intrusive into our applications, and it stands to
+reason that this process could be automated.
 
 First, we need to allow SBO to make a binding against our RabbitMQ cluster by
 adding a ClusterRole.  For security reasons, SBO doesn't have permissions to
@@ -153,7 +172,10 @@ The `servicebinding.io/controller` label gets the ClusterRole picked up
 automatically by SBO; we don't need to add a ClusterRoleBinding as we usually
 would need to.
 
-Next, we can perform our bindings:
+Next, we can perform our bindings.  Service Binding Operator introduces a new
+custom resource titled `ServiceBinding`, which represents the binding between
+an application and a service.  In this particular example, the bindings for our
+`producer` and `consumer` applications would look like this:
 ```yaml
 ---
 apiVersion: binding.operators.coreos.com/v1alpha1
@@ -201,10 +223,11 @@ We don't always need to specify these annotations on our custom resources.
 Instead, we could instead set the label `servicebinding.io/provisioned-service:
 true` on the custom resource (instead of the annotations we would usually set)
 and everything should work.  Ideally, this would already be done for us;
-however, at time of writing, this label has not already been set on RabbitMQ's
+however, at time of writing, this label has not been applied to RabbitMQ's
 operator.
 
 # Resources
 
 - [The Service Binding Operator on GitHub](https://github.com/redhat-developer/service-binding-operator)
 - [Official Documentation](https://redhat-developer.github.io/service-binding-operator/)
+- [Materials used in this post](https://github.com/sadlerap/sbo-rabbitmq-sample)
