@@ -23,34 +23,6 @@ In summary, we want our setup to look like the following:
   https://github.com/rabbitmq/cluster-operator for this demonstration)
 - Our `producer` and `consumer` also running on kubernetes
 
-<!-- # Connecting the hard way -->
-
-<!-- As a comparison, let's connect our services to our rabbitmq cluster without -->
-<!-- using SBO.  We'll be using RabbitMQ's [cluster -->
-<!-- operator](https://github.com/rabbitmq/cluster-operator) to manage our RabbitMQ -->
-<!-- clusters. -->
-
-<!-- First, let's get our rabbitmq cluster setup.  First, we need to install -->
-<!-- Operator Lifecycle Manager (OLM), a prerequisite for our RabbitMQ operator: -->
-<!-- ```bash -->
-<!-- curl -sL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/v0.19.1/install.sh | bash -s v0.19.1 -->
-<!-- ``` -->
-
-<!-- NOTE: yes, doing `curl ... | bash` isn't the best in terms of security.  If -->
-<!-- this is a concern, you can instead save it to a location in your filesystem and -->
-<!-- execute the script from there. -->
-
-<!-- Now we can setup the RabbitMQ operator: -->
-<!-- ```bash -->
-<!-- kubectl apply -f https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml -->
-<!-- ``` -->
-
-<!-- Next, we want to have our `producer` and `consumer` running on our kubernetes -->
-<!-- cluster.  For convenience, I've authored two containers that provide this functionality. -->
-
-<!-- TODO: What is "best practice" for connecting a service to a rabbitmq cluster -->
-<!-- *without* SBO? -->
-
 # Connecting made easier
 
 Instead of connecting the hard way, we can leverage SBO to get these services
@@ -84,8 +56,7 @@ functionality; their sources can be found
 
 SBO operates against deployments, so we'll need to make a deployment for each of
 our applications.  We can do so with the following:
-```bash
-kubectl apply -f - < EOF
+```yaml
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -126,7 +97,6 @@ spec:
       containers:
       - name: consumer
         image: quay.io/ansadler/rabbitmq-consumer:latest
-EOF
 ```
 
 We could put them in a single deployment, but for the
@@ -134,7 +104,6 @@ purposes of this demonstration, I've opted to keep them separate.
 
 We'll also want a rabbitmq cluster to run them against:
 ```yaml
-kubectl apply -f - <EOF
 apiVersion: rabbitmq.com/v1beta1
 kind: RabbitmqCluster
 metadata:
@@ -144,7 +113,6 @@ metadata:
 spec:
   service:
     type: ClusterIP
-EOF
 ```
 
 To make this process easier, you can deploy all of these (that is, `producer`,
@@ -153,9 +121,9 @@ To make this process easier, you can deploy all of these (that is, `producer`,
 kubectl apply -f https://raw.githubusercontent.com/sadlerap/sbo-rabbitmq-sample/master/jobs.yaml
 ```
 
-NOTE: Look closely at the annotation I've added.  This is how SBO picks up the
-information it needs to successfully perform a binding.  If you're interested in
-how to read this annotation, check out our
+NOTE: Look closely at the annotation we've added.  This is how SBO picks up the
+information it needs to successfully perform a binding.  If you're interested
+in how to read this annotation, check out our
 [documentation](https://redhat-developer.github.io/service-binding-operator/userguide/exposing-binding-data/adding-annotation.html).
 
 ## Binding things together
@@ -227,13 +195,16 @@ spec:
 Now, if we inspect the logs of our `consumer` deployment, we'll see that we've
 been receiving messages from our `producer`.
 
-## An even easier way
+# An even easier way
 
-Set the label `service.binding/provisioned-service=true` on the custom resource
-(instead of the annotations we would usually set) and everything should work.
+We don't always need to specify these annotations on our custom resources.
+Instead, we could instead set the label `servicebinding.io/provisioned-service:
+true` on the custom resource (instead of the annotations we would usually set)
+and everything should work.  Ideally, this would already be done for us;
+however, at time of writing, this label has not already been set on RabbitMQ's
+operator.
 
-## The easiest way
+# Resources
 
-The RabbitMQ operator is a part of the service binding registry, so these
-annotations/labels that we set earlier don't even need to be set for this to
-work.
+- [The Service Binding Operator on GitHub](https://github.com/redhat-developer/service-binding-operator)
+- [Official Documentation](https://redhat-developer.github.io/service-binding-operator/)
