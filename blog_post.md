@@ -17,33 +17,220 @@ means distributing to these services the following information:
 - Hostname/Port
 - Authentication credentials (such as username & password)
 
-In summary, for our example, we want the following:
+In summary, we want our setup to look like the following:
 
 - An operator-managed RabbitMQ cluster running on kubernetes (we will use
   https://github.com/rabbitmq/cluster-operator for this demonstration)
 - Our `producer` and `consumer` also running on kubernetes
 
-# Connecting the hard way
+<!-- # Connecting the hard way -->
 
-As a comparison, let's connect our services to our rabbitmq cluster without
-using SBO.
+<!-- As a comparison, let's connect our services to our rabbitmq cluster without -->
+<!-- using SBO.  We'll be using RabbitMQ's [cluster -->
+<!-- operator](https://github.com/rabbitmq/cluster-operator) to manage our RabbitMQ -->
+<!-- clusters. -->
 
-TODO: What is "best practice" for connecting a service to a rabbitmq cluster
-without SBO?
+<!-- First, let's get our rabbitmq cluster setup.  First, we need to install -->
+<!-- Operator Lifecycle Manager (OLM), a prerequisite for our RabbitMQ operator: -->
+<!-- ```bash -->
+<!-- curl -sL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/v0.19.1/install.sh | bash -s v0.19.1 -->
+<!-- ``` -->
+
+<!-- NOTE: yes, doing `curl ... | bash` isn't the best in terms of security.  If -->
+<!-- this is a concern, you can instead save it to a location in your filesystem and -->
+<!-- execute the script from there. -->
+
+<!-- Now we can setup the RabbitMQ operator: -->
+<!-- ```bash -->
+<!-- kubectl apply -f https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml -->
+<!-- ``` -->
+
+<!-- Next, we want to have our `producer` and `consumer` running on our kubernetes -->
+<!-- cluster.  For convenience, I've authored two containers that provide this functionality. -->
+
+<!-- TODO: What is "best practice" for connecting a service to a rabbitmq cluster -->
+<!-- *without* SBO? -->
 
 # Connecting made easier
 
-Instead of doing this, we can instead leverage SBO to get these services to talk
-to RabbitMQ.
+Instead of connecting the hard way, we can leverage SBO to get these services
+to talk to RabbitMQ.
 
-TODO: detail [jobs.yaml](/jobs.yaml) and [service-binding.yaml](/service-binding.yaml)
+First, let's get our rabbitmq cluster setup.  First, we need to install
+Operator Lifecycle Manager (OLM), a prerequisite for our RabbitMQ operator:
+```bash
+curl -sL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/v0.19.1/install.sh | bash -s v0.19.1
+```
+
+NOTE: yes, doing `curl ... | bash` isn't the best in terms of security.  If this
+is a concern for you, you can instead save the installation script to a location
+in your filesystem and execute the script from there after inspecting its
+contents.
+
+Now we can setup the RabbitMQ operator:
+```bash
+kubectl apply -f https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml
+```
+
+While we're setting up operators, now would be a good time to install SBO:
+```bash
+kubectl apply -f https://operatorhub.io/install/service-binding-operator.yaml
+```
+
+Next, we want to have our `producer` and `consumer` running on our kubernetes
+cluster.  For convenience, I've authored two containers that provide this
+functionality; their sources can be found
+[here](https://github.com/sadlerap/sbo-rabbitmq-sample).
+
+SBO operates against deployments, so we'll need to make a deployment for each of
+our applications.  We can do so with the following:
+```bash
+kubectl apply -f - < EOF
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer-deployment
+  labels:
+    app: producer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: producer
+  template:
+    metadata:
+      labels:
+        app: producer
+    spec:
+      containers:
+      - name: producer
+        image: quay.io/ansadler/rabbitmq-producer:latest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer-deployment
+  labels:
+    app: consumer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consumer
+  template:
+    metadata:
+      labels:
+        app: consumer
+    spec:
+      containers:
+      - name: consumer
+        image: quay.io/ansadler/rabbitmq-consumer:latest
+EOF
+```
+
+We could put them in a single deployment, but for the
+purposes of this demonstration, I've opted to keep them separate.
+
+We'll also want a rabbitmq cluster to run them against:
+```yaml
+kubectl apply -f - <EOF
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: rabbitmq
+  annotations:
+    service.binding: path={.status.binding.name},objectType=Secret,elementType=map
+spec:
+  service:
+    type: ClusterIP
+EOF
+```
+
+To make this process easier, you can deploy all of these (that is, `producer`,
+`consumer`, and our rabbitmq cluster) with the following:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/sadlerap/sbo-rabbitmq-sample/master/jobs.yaml
+```
+
+NOTE: Look closely at the annotation I've added.  This is how SBO picks up the
+information it needs to successfully perform a binding.  If you're interested in
+how to read this annotation, check out our
+[documentation](https://redhat-developer.github.io/service-binding-operator/userguide/exposing-binding-data/adding-annotation.html).
+
+## Binding things together
+
+Right now, we have our applications running, but they're currently not talking
+to our RabbitMQ cluster yet.  Let's fix that by making a binding request.
+
+First, we need to allow SBO to make a binding against our RabbitMQ cluster by
+adding a ClusterRole.  For security reasons, SBO doesn't have permissions to
+make a binding against something it doesn't know about; we can remedy this by
+adding a ClusterRole like so:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sbo-rabbitmq
+  labels:
+    servicebinding.io/controller: "true"
+rules:
+  - apiGroups: ["rabbitmq.com"]
+    resources: ["rabbitmqclusters"]
+    verbs: ["get", "list"]
+```
+
+The `servicebinding.io/controller` label gets the ClusterRole picked up
+automatically by SBO; we don't need to add a ClusterRoleBinding as we usually
+would need to.
+
+Next, we can perform our bindings:
+```yaml
+---
+apiVersion: binding.operators.coreos.com/v1alpha1
+kind: ServiceBinding
+metadata:
+  name: servicebinding-consumer
+spec:
+  bindAsFiles: false
+  services:
+  - group: rabbitmq.com
+    version: v1beta1
+    kind: RabbitmqCluster
+    name: rabbitmq
+  application:
+    name: consumer-deployment
+    version: v1
+    group: apps
+    resource: deployments
+---
+apiVersion: binding.operators.coreos.com/v1alpha1
+kind: ServiceBinding
+metadata:
+  name: servicebinding-producer
+spec:
+  bindAsFiles: false
+  services:
+  - group: rabbitmq.com
+    version: v1beta1
+    kind: RabbitmqCluster
+    name: rabbitmq
+  application:
+    name: producer-deployment
+    version: v1
+    group: apps
+    resource: deployments
+---
+```
+
+Now, if we inspect the logs of our `consumer` deployment, we'll see that we've
+been receiving messages from our `producer`.
 
 ## An even easier way
 
 Set the label `service.binding/provisioned-service=true` on the custom resource
 (instead of the annotations we would usually set) and everything should work.
-
-TODO: (insert details of it working here)
 
 ## The easiest way
 
