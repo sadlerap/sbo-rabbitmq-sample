@@ -1,22 +1,25 @@
 use std::{thread, time::Duration};
 
-use color_eyre::eyre::Result;
 use amiquip::{Connection, Exchange, Publish};
+use color_eyre::{
+    eyre::{eyre, Result},
+    install,
+};
 
 fn main() -> Result<()> {
-    if std::env::var("RUST_BACKTRACE").is_err() {
-        std::env::set_var("RUST_BACKTRACE", "full");
-    }
-    color_eyre::install()?;
-
-    for (var, value) in std::env::vars() {
-        println!("{}: {}", var, value);
-    }
+    // if std::env::var("RUST_BACKTRACE").is_err() {
+    //     std::env::set_var("RUST_BACKTRACE", "full");
+    // }
+    install()?;
 
     let username = std::env::var("RABBITMQCLUSTER_USERNAME").unwrap_or("guest".into());
     let password = std::env::var("RABBITMQCLUSTER_PASSWORD").unwrap_or("guest".into());
-    let hostname = std::env::var("RABBITMQCLUSTER_HOST")
-        .map_err(|x| {eprintln!("env var RABBITMQCLUSTER_HOST undefined"); return x})?;
+    let hostname = std::env::var("RABBITMQCLUSTER_HOST").map_err(|x| match x {
+        std::env::VarError::NotPresent => eyre!("$RABBITMQCLUSTER_HOST not defined"),
+        std::env::VarError::NotUnicode(_) => {
+            eyre!("$RABBITMQCLUSTER_HOST contains invalid characters")
+        }
+    })?;
     let port = std::env::var("RABBITMQ_SERVICE_PORT_AMQP")
         .as_ref()
         .map(|x| u16::from_str_radix(x, 10))

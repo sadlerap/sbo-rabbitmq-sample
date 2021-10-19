@@ -134,6 +134,25 @@ information it needs to successfully perform a binding.  If you're interested
 in how to read this annotation, check out our
 [documentation](https://redhat-developer.github.io/service-binding-operator/userguide/exposing-binding-data/adding-annotation.html).
 
+Now, if you inspect our container logs for `consumer`, you'll see something
+similar to this:
+```
+$ kubectl logs consumer-deployment-f877cffb6-p9sks
+Error:
+   0: $RABBITMQCLUSTER_HOST not defined
+
+Location:
+   src/consumer.rs:16
+
+Backtrace omitted.
+Run with RUST_BACKTRACE=1 environment variable to display it.
+Run with RUST_BACKTRACE=full to include source snippets.
+```
+
+`producer` throws a similar error.  This is because we haven't bound our
+RabbitMQ cluster to either `producer` and `consumer`, so neither of our
+containers know where to find it.  Let's fix that.
+
 ## Binding things together
 
 If we were not using SBO, we would need to tell both `producer` and `consumer`
@@ -215,7 +234,45 @@ spec:
 ```
 
 Now, if we inspect the logs of our `consumer` deployment, we'll see that we've
-been receiving messages from our `producer`.
+been receiving messages from our `producer`.  You should see something similar
+to the following:
+```
+$ kubectl logs consumer-deployment-6f48dbfb7d-5dsgd
+connecting to: amqp://default_user_7Jba_ZP7NKD-UjJK8AQ:HIhVZ4a_6Xm60Z7bmbEDADDpwr2e_tch@rabbitmq.default.svc:5672
+Waiting for messages, press Ctrl-C to exit.
+(  0) Received [hello, world!]
+(  1) Received [hello, world!]
+(  2) Received [hello, world!]
+(  3) Received [hello, world!]
+(  4) Received [hello, world!]
+(  5) Received [hello, world!]
+(  6) Received [hello, world!]
+(  7) Received [hello, world!]
+(  8) Received [hello, world!]
+(  9) Received [hello, world!]
+( 10) Received [hello, world!]
+( 11) Received [hello, world!]
+( 12) Received [hello, world!]
+```
+
+`producer` says something similar:
+
+```
+kubectl logs producer-deployment-6d8d55949d-8qd9c
+connecting to: amqp://default_user_7Jba_ZP7NKD-UjJK8AQ:HIhVZ4a_6Xm60Z7bmbEDADDpwr2e_tch@rabbitmq.default.svc:5672
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+sending [hello, world!] to queue hello
+```
 
 # An even easier way
 
