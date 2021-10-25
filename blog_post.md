@@ -1,16 +1,16 @@
 # Introduction
 
-Today, we will examine how we can leverage the Service Binding Operator (SBO)
-to make connecting services to applications easier within a kubernetes cluster.
+Today, we will examine how we can leverage Service Binding Operator (SBO) to
+make connecting services to applications easier within a kubernetes cluster.
 
-# Background - What is the Service Binding Operator?
+# Background - What is Service Binding Operator?
 
 In the realm of Kubernetes, exposing secrets to applications to allow them to
 connect to services is an inconsistent process across the ecosystem.  Many
 service providers have their own bespoke method of binding an application to
 their service.
 
-The Service Binding Operator is intended to remedy this issue by managing the
+Service Binding Operator is intended to remedy this issue by managing the
 binding process for us.  When you execute a binding request, the operator looks
 at information stored within the custom resource and its corresponding custom
 resource definition.  This information informs the operator of the information
@@ -22,42 +22,41 @@ To learn more about some of the other features SBO supports and its
 integrations with other products, you can read our release announcement
 [here](https://docs.google.com/document/d/1VgTMKlc9B1_32hGT1AnZhzEjomGKwlTYc4nZ7QudkpU/edit#),
 which covers those details.  In this post, we will be looking at an example of
-binding in action using the Service Binding Operator.
+binding in action using Service Binding Operator.
 
 # An example
 
-Let's say I have two kubernetes services, `producer` and `consumer`, that talk
-to a RabbitMQ instance using AMQP.  `producer` periodically produces data that
-`consumer` reads and acts on.  For the sake of this demonstration, that action
-is printing whatever it receives to `stdout`.
+Let's say you have two kubernetes services, `producer` and `consumer`, that
+talk to a RabbitMQ instance using AMQP.  `producer` periodically produces data
+that `consumer` reads and acts on.  For the sake of this demonstration, that
+action is printing whatever it receives to `stdout`.
 
-We'll return to the concept of binding once we have everything setup.  For now,
-let's get our RabbitMQ cluster setup on a local kubernetes cluster (I prototype
-with `minikube`, but the instructions would be the same if you were to run this
-on an OpenShift cluster).
+## Installing prerequisites
 
-First, we can setup the RabbitMQ operator:
+First, install the RabbitMQ operator:
 ```bash
 kubectl apply -f https://github.com/rabbitmq/cluster-operator/releases/latest/download/cluster-operator.yml
 ```
 
-Next, we'll need to install Operator Lifecycle Manager (OLM), a prerequisite
-for the Service Binding Operator:
+Next, you'll need to install Operator Lifecycle Manager (OLM), a prerequisite
+for Service Binding Operator:
 ```bash
 curl -sL https://github.com/operator-framework/operator-lifecycle-manager/releases/download/v0.19.1/install.sh | bash -s v0.19.1
 ```
 
-NOTE: yes, doing `curl ... | bash` isn't the best in terms of security.  If this
-is a concern for you, you can instead save the installation script to a location
-in your filesystem and execute the script from there after inspecting its
-contents.
+NOTE: yes, doing `curl ... | bash` isn't the best in terms of security.  If
+this is a concern for you, you can instead save the installation script to a
+location in your filesystem and execute the script from there after inspecting
+its contents.
 
-We'll also need the Service Binding Operator:
+You'll also need to install Service Binding Operator:
 ```bash
 kubectl apply -f https://operatorhub.io/install/service-binding-operator.yaml
 ```
 
-Next, we want to have our `producer` and `consumer` running on our kubernetes
+## Deploying
+
+Next, you'll want to have `producer` and `consumer` running on the kubernetes
 cluster.  For convenience, I've authored two containers that provide this
 functionality; their sources can be found
 [here](https://github.com/sadlerap/sbo-rabbitmq-sample).
@@ -69,7 +68,7 @@ kubectl create deployment producer --image=quay.io/ansadler/rabbitmq-producer:la
 kubectl create deployment consumer --image=quay.io/ansadler/rabbitmq-consumer:latest
 ```
 
-We'll also want a rabbitmq cluster to run them against:
+You'll also want a rabbitmq cluster to run them against:
 ```yaml
 apiVersion: rabbitmq.com/v1beta1
 kind: RabbitmqCluster
@@ -80,18 +79,7 @@ spec:
     type: ClusterIP
 ```
 
-If you wish, you can deploy all of these (that is, `producer`, `consumer`, and
-a rabbitmq cluster) with the following:
-```bash
-kubectl apply -f https://raw.githubusercontent.com/sadlerap/sbo-rabbitmq-sample/master/jobs.yaml
-```
-
-NOTE: Why don't we need to add [service binding
-annotations](https://redhat-developer.github.io/service-binding-operator/userguide/exposing-binding-data/adding-annotation.html)
-here?  RabbitMQ already exposes the information necessary to be recognized as a
-provisioned service, so SBO already knows how to connect to it.
-
-Now, if you inspect our container logs for `consumer`, you'll see something
+Now, if you inspect the container logs for `consumer`, you'll see something
 similar to this:
 ```
 $ kubectl logs consumer-deployment-f877cffb6-p9sks
@@ -106,14 +94,15 @@ Run with RUST_BACKTRACE=1 environment variable to display it.
 Run with RUST_BACKTRACE=full to include source snippets.
 ```
 
-`producer` throws a similar error.  This is because we haven't bound our
-RabbitMQ cluster to either `producer` and `consumer`, so neither of them know
-where to find it.  Let's fix that.
+If you inspect the logs for `producer` as well, you'll see that it throws a
+similar error.  This happens because we haven't bound our RabbitMQ cluster to
+either `producer` and `consumer`, so neither of them know where to find it.
+Let's fix that.
 
 ## Binding things together
 
-If we were not using SBO, we would need to tell both `producer` and `consumer`
-how to connect to a rabbitmq instance.  This means distributing at minimum the
+If you were not using SBO, we would need to tell both `producer` and `consumer`
+how to connect to a rabbitmq instance.  This means distributing at least the
 following information to these services:
 
 - The hostname of the RabbitMQ instance
@@ -170,15 +159,16 @@ spec:
 ---
 ```
 
-NOTE: If we were running this against a different operator (one not supported
-in our [service
-registry](https://github.com/redhat-developer/service-binding-operator#known-bindable-operators)),
-we would have to give SBO permission to read from this service via RBAC rules.
-You can read more about how to do that
-[here](https://redhat-developer.github.io/service-binding-operator/userguide/exposing-binding-data/rbac-requirements.html)
+NOTE: If you were running this against an operator not already supported by SBO
+(see [our
+README](https://github.com/redhat-developer/service-binding-operator#known-bindable-operators)
+for a list of these operators), we would have to give SBO permission to read
+from this service via RBAC rules.  You can read more about how to do that on
+our [official
+documentation](https://redhat-developer.github.io/service-binding-operator/userguide/exposing-binding-data/rbac-requirements.html)
 
-Now, if we inspect the logs of our `consumer` deployment, we'll see that we've
-been receiving messages from our `producer`.  You should see something similar
+Now, if you inspect the logs of our `consumer` deployment, you'll see that
+`producer` has been sending messages to it.  You should see something similar
 to the following:
 
 ```
@@ -221,9 +211,9 @@ sending [hello, world!] to queue hello
 
 # Resources
 
-If you'd like to learn more about the Service Binding Operator, feel free to
-check out the following resources:
+If you'd like to learn more about Service Binding Operator, feel free to check
+out the following resources:
 
-- [The Service Binding Operator on GitHub](https://github.com/redhat-developer/service-binding-operator)
+- [Service Binding Operator on GitHub](https://github.com/redhat-developer/service-binding-operator)
 - [Official Documentation](https://redhat-developer.github.io/service-binding-operator/)
 - [Materials used in this post](https://github.com/sadlerap/sbo-rabbitmq-sample)
